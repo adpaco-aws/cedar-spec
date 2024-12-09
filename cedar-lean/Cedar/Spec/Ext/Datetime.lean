@@ -14,7 +14,9 @@
  limitations under the License.
 -/
 
+-- import Std.Time.Datetime
 import Cedar.Data.Int64
+
 
 /-! This file defines Cedar datetime values and functions. -/
 
@@ -39,6 +41,17 @@ open Cedar.Data
   A duration may be negative. Negative duration strings must begin with `-`.
 -/
 abbrev Duration := Int64
+
+/--
+  A datetime value is measured in milliseconds and constructed from a datetime
+  string. A datetime string must be one of the following:
+    - "YYYY-MM-DD" (date only)
+    - "YYYY-MM-DDThh:mm:ssZ" (UTC)
+    - "YYYY-MM-DDThh:mm:ss.SSSZ" (UTC with millisecond precision)
+    - "YYYY-MM-DDThh:mm:ss(+|-)hhmm" (with timezone offset in hours and minutes)
+    - "YYYY-MM-DDThh:mm:ss.SSS(+|-)hhmm" (with timezone offset in hours and minutes and millisecond precision)
+-/
+abbrev Datetime := Int64
 
 namespace Datetime
 
@@ -110,8 +123,51 @@ def Duration.parse (str : String) : Option Duration :=
     else some duration
   | none => none
 
+def datetime? (n : Nat) : Option Duration :=
+  Int64.mk? n
+
+def parseDigitsToNat? (str: String) (k: Nat) (p: Nat → Bool := fun _ => true): Option (Nat × String) := do
+  let numChars := str.take k
+  let num <- numChars.toNat?
+  if !p num then failure
+  some (num, str.drop k)
+
+def consumeStr? (str pref: String) : Option String :=
+  if str.startsWith pref
+  then  some (str.drop pref.length)
+  else none
+
+-- def numToDate( y m d : Nat) : Option Datetime :=
+
+def parseDateOnly (str : String) : Option Datetime := do
+  let (year, restStr) ← parseDigitsToNat? str 4
+  let restStr ← consumeStr? restStr "-"
+  let (month, restStr) ← parseDigitsToNat? restStr 2 (fun x => x >= 1 && x <= 12)
+  let restStr ← consumeStr? restStr "-"
+  -- predicate needs to be more specific
+  let (day, restStr) ← parseDigitsToNat? restStr 2 (fun x => x >= 1 && x <= 31)
+  if restStr.isEmpty
+  then datetime? (day + month + year)
+  else failure
+
+def parse (str : String) : Option Datetime :=
+  match str.length with
+  | 10 => parseDateOnly str
+  -- | 20 => parseDateUTC
+  -- |
+  | _ => none
+
+
+#eval parse "1989-10-10"
+-- #eval "YYYY-MM-DDThh:mm:ssZ".length
+
 deriving instance Repr for Duration
 
 abbrev duration := Duration.parse
+
+
+-- FROM HERE IT'S ALL COPIED FROM:
+-- https://github.com/leanprover/lean4/pull/4904
+
 
 end Datetime
