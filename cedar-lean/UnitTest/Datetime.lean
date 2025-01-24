@@ -45,6 +45,24 @@ def testsForValidDatetimeStrings :=
     testValidDatetime "2024-10-15T11:38:02-1134" 1729033922000,
     testValidDatetime "2016-12-31T23:59:60Z" 1483228800000, -- the last leap second // TODO: LEAN-RUST DIFF
     testValidDatetime "2017-01-01" 1483228800000, -- same date without leap second // TODO: LEAN-RUST DIFF
+        -- 1. the last leap second - test passes
+    testValidDatetime "2016-12-31T23:59:60Z" 1483228800000,
+    -- 2. an "invalid" leap second - test passes
+    testValidDatetime "2017-06-30T23:59:60Z" 1498867200000,
+    -- 3. an invalid minute - test fails
+    testValidDatetime "2017-06-30T23:60:00Z" 1498867200000,
+    -- 4. the CET timezone offset (UTC+01:00) - test passes
+    testValidDatetime "2016-12-31T00:00:00+0100" 1483138800000,
+    -- 5. a negative zero timezone offset (not permitted) - test passes
+    testValidDatetime "2016-12-31T00:00:00-0000" 1483142400000,
+    -- 6. a general timezone offset - test passes
+    testValidDatetime "2016-12-31T00:00:00+1159" 1483099260000,
+    -- 7. a general timezone offset - test passes
+    testValidDatetime "2016-12-31T00:00:00+1500" 1483088400000,
+    -- 8. a general timezone offset with a "leap minute" - test passes
+    testValidDatetime "2016-12-31T00:00:00+2360" 1483056000000,
+    -- 9. a general timezone offset with out-of-range values - test passes
+    testValidDatetime "2016-12-31T00:00:00+2490" 1483050600000,
   ]
 
 private def testInvalidDatetime (str : String) (msg : String) : TestCase IO :=
@@ -162,6 +180,6 @@ def tests := [testsForValidDatetimeStrings, testsForInvalidDatetimeStrings,
               testsForValidDurationStrings, testsForInvalidDurationStrings]
 
 -- Uncomment for interactive debugging
--- #eval TestSuite.runAll tests
+#eval TestSuite.runAll tests
 
 end UnitTest.Datetime
