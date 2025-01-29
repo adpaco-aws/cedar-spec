@@ -50,7 +50,7 @@ def testsForValidDatetimeStrings :=
     -- 2. an "invalid" leap second - test passes
     testValidDatetime "2017-06-30T23:59:60Z" 1498867200000,
     -- 3. an invalid minute - test fails
-    testValidDatetime "2017-06-30T23:60:00Z" 1498867200000,
+    testValidDatetime "2017-06-30T23:60:00Z" 0,
     -- 4. the CET timezone offset (UTC+01:00) - test passes
     testValidDatetime "2016-12-31T00:00:00+0100" 1483138800000,
     -- 5. a negative zero timezone offset (not permitted) - test passes
@@ -63,6 +63,10 @@ def testsForValidDatetimeStrings :=
     testValidDatetime "2016-12-31T00:00:00+2360" 1483056000000,
     -- 9. a general timezone offset with out-of-range values - test passes
     testValidDatetime "2016-12-31T00:00:00+2490" 1483050600000,
+    -- 10. a valid date since 2024 is a leap year - test passes
+    testValidDatetime "2024-02-29" 1709164800000,
+    -- 11. an invalid date (ranges are valid) - test fails
+    testValidDatetime "2025-02-31" 0,
   ]
 
 private def testInvalidDatetime (str : String) (msg : String) : TestCase IO :=
