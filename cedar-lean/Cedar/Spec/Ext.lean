@@ -16,6 +16,7 @@
 
 import Cedar.Spec.Ext.Decimal
 import Cedar.Spec.Ext.IPAddr
+import Cedar.Spec.Ext.Datetime
 
 /-! This file defines Cedar extension values. -/
 
@@ -26,16 +27,25 @@ open Cedar.Spec.Ext
 ----- Definitions -----
 
 abbrev IPAddr := IPAddr.IPNet
+abbrev Duration := Datetime.Duration
 
 inductive Ext where
   | decimal (d : Decimal)
   | ipaddr (ip : IPAddr)
+  | datetime (dt : Datetime)
+  | duration (dur: Duration)
 
+-- Ordering on extension types: .decimal < .ipaddr < .duration < .datetime
 def Ext.lt : Ext → Ext → Bool
   | .decimal d₁, .decimal d₂ => d₁ < d₂
   | .ipaddr ip₁, .ipaddr ip₂ => ip₁ < ip₂
-  | .decimal  _, .ipaddr _   => true
-  | .ipaddr   _, .decimal _  => false
+  | .datetime d₁, .datetime d₂ => d₁ < d₂
+  | .duration d₁, .duration d₂ => d₁ < d₂
+  | .decimal  _, _
+  | .ipaddr   _, .duration _
+  | .ipaddr   _, .datetime _
+  | .duration _, .datetime _  => true
+  | _ , _ => false
 
 ----- Derivations -----
 
