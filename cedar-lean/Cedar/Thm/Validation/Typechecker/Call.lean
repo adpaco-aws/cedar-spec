@@ -63,6 +63,86 @@ theorem type_of_call_decimal_is_sound {xs : List Expr} {c₁ c₂ : Capabilities
   · apply InstanceOfType.instance_of_ext
     simp [InstanceOfExtType]
 
+theorem type_of_call_datetime_inversion {xs : List Expr} {c c' : Capabilities} {env : Environment} {ty : TypedExpr}
+  (h₁ : typeOf (Expr.call .datetime xs) c env = Except.ok (ty, c')) :
+  ty.typeOf = .ext .datetime ∧
+  c' = ∅ ∧
+  ∃ (s : String),
+    xs = [.lit (.string s)] ∧
+    (Cedar.Spec.Ext.Datetime.parse s).isSome
+:= by
+  simp [typeOf] at h₁
+  cases h₂ : List.mapM₁ xs fun x => justType (typeOf x.val c env) <;>
+  simp [h₂] at h₁
+  rename_i tys
+  simp [typeOfCall, typeOfConstructor] at h₁
+  split at h₁ <;> simp [ok, err] at h₁
+  rename_i s
+  split at h₁ <;> simp at h₁
+  simp [h₁]
+  rename_i h₃
+  cases h₁ ; subst ty
+  simp [h₃, TypedExpr.typeOf]
+
+theorem type_of_call_datetime_is_sound {xs : List Expr} {c₁ c₂ : Capabilities} {env : Environment} {ty : TypedExpr} {request : Request} {entities : Entities}
+  (h₁ : typeOf (Expr.call .datetime xs) c₁ env = Except.ok (ty, c₂)) :
+  GuardedCapabilitiesInvariant (Expr.call .datetime xs) c₂ request entities ∧
+  ∃ v, EvaluatesTo (Expr.call .datetime xs) request entities v ∧ InstanceOfType v ty.typeOf
+:= by
+  have ⟨h₂, h₃, s, h₄, h₅⟩ := type_of_call_datetime_inversion h₁
+  rw [h₂]
+  subst h₃ h₄
+  apply And.intro empty_guarded_capabilities_invariant
+  rw [Option.isSome_iff_exists] at h₅
+  have ⟨dt, h₅⟩ := h₅
+  exists .ext dt
+  constructor
+  · simp [EvaluatesTo, evaluate, List.mapM₁, List.mapM, List.mapM.loop, call, res, h₅, Coe.coe]
+  · apply InstanceOfType.instance_of_ext
+    simp [InstanceOfExtType]
+
+def IsDatetimeMethod : ExtFun → Prop
+  | .offset
+  | .durationSince
+  | .toDate
+  | .toTime        => True
+  | _              => False
+
+theorem type_of_call_datetime_method_is_sound {xfn : ExtFun} {xs : List Expr} {c₁ c₂ : Capabilities} {env : Environment} {ty : TypedExpr} {request : Request} {entities : Entities}
+  (h₀ : IsDatetimeMethod xfn)
+  (h₁ : typeOf (Expr.call xfn xs) c₁ env = Except.ok (ty, c₂)) :
+  GuardedCapabilitiesInvariant (Expr.call xfn xs) c₂ request entities ∧
+  ∃ v, EvaluatesTo (Expr.call xfn xs) request entities v ∧ InstanceOfType v ty.typeOf
+:= by
+  sorry
+
+theorem type_of_call_duration_inversion {xs : List Expr} {c c' : Capabilities} {env : Environment} {ty : TypedExpr}
+  (h₁ : typeOf (Expr.call .duration xs) c env = Except.ok (ty, c')) :
+  ty.typeOf = .ext .duration ∧
+  c' = ∅ ∧
+  ∃ (s : String),
+    xs = [.lit (.string s)] ∧
+    (Cedar.Spec.Ext.Datetime.duration s).isSome
+:= by
+  simp [typeOf] at h₁
+  cases h₂ : List.mapM₁ xs fun x => justType (typeOf x.val c env) <;>
+  simp [h₂] at h₁
+  rename_i tys
+  simp [typeOfCall, typeOfConstructor] at h₁
+  split at h₁ <;> simp [ok, err] at h₁
+  rename_i s
+  split at h₁ <;> simp at h₁
+  cases h₁ ; subst ty c'
+  rename_i h₃
+  simp [TypedExpr.typeOf, h₃]
+
+theorem type_of_call_duration_is_sound {xs : List Expr} {c₁ c₂ : Capabilities} {env : Environment} {ty : TypedExpr} {request : Request} {entities : Entities}
+  (h₁ : typeOf (Expr.call .duration xs) c₁ env = Except.ok (ty, c₂)) :
+  GuardedCapabilitiesInvariant (Expr.call .duration xs) c₂ request entities ∧
+  ∃ v, EvaluatesTo (Expr.call .duration xs) request entities v ∧ InstanceOfType v ty.typeOf
+:= by
+  sorry
+
 theorem type_of_call_ip_inversion {xs : List Expr} {c c' : Capabilities} {env : Environment} {ty : TypedExpr}
   (h₁ : typeOf (Expr.call .ip xs) c env = Except.ok (ty, c')) :
   ty.typeOf = .ext .ipAddr ∧
@@ -429,5 +509,11 @@ theorem type_of_call_is_sound {xfn : ExtFun} {xs : List Expr} {c₁ c₂ : Capab
   | .isIpv6
   | .isLoopback
   | .isMulticast        => exact type_of_call_ipAddr_recognizer_is_sound (by simp [IsIpAddrRecognizer]) h₁ h₂ h₃ ih
+  | .datetime           => exact type_of_call_datetime_is_sound h₃
+  | .duration           => exact type_of_call_duration_is_sound h₃
+  | .offset
+  | .durationSince
+  | .toDate
+  | .toTime             => exact type_of_call_datetime_method_is_sound (by simp only [IsDatetimeMethod]) h₃
 
 end Cedar.Thm
