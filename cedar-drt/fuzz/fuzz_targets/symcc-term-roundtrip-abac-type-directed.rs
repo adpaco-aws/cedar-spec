@@ -27,7 +27,7 @@ use cedar_policy_generators::{
 
 use libfuzzer_sys::arbitrary::{self, Arbitrary, MaxRecursionReached, Unstructured};
 use log::debug;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, sync::LazyLock};
 
 /// Input expected by this fuzz target:
 /// An ABAC hierarchy, policy, and 8 associated requests
@@ -57,6 +57,7 @@ const SETTINGS: ABACSettings = ABACSettings {
 
 impl<'a> Arbitrary<'a> for FuzzTargetInput {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+
         let schema = schema::Schema::arbitrary(SETTINGS.clone(), u)?;
         let hierarchy = schema.arbitrary_hierarchy(u)?;
         let policy = schema.arbitrary_policy(&hierarchy, u)?;
@@ -83,34 +84,35 @@ impl<'a> Arbitrary<'a> for FuzzTargetInput {
     }
 }
 
+static LEAN_ENGINE: LazyLock<CedarLeanEngine> = LazyLock::new(|| CedarLeanEngine::new());
+
 // Fuzzing Target to show that Asserts/Term Serialization/Deserialization does not effect the final SMTLib script produced
 fuzz_target!(|input: FuzzTargetInput| {
     initialize_log();
-    let len_engine = CedarLeanEngine::new();
-    let lean_ffi = len_engine.get_ffi();
+    let lean_ffi = LEAN_ENGINE.get_ffi();
     let mut policyset = PolicySet::new();
     let policy: Policy = input.policy.into();
-    policyset.add(policy.clone()).unwrap();
+    policyset.add(policy).unwrap();
     debug!("Schema: {}\n", input.schema.schemafile_string());
     debug!("Policies: {policyset}\n");
 
     if let Ok(schema) = Schema::try_from(input.schema) {
         for req_env in schema.request_envs() {
-            // Compute's SMTLib Script Directly in one-pass from Lean
+            // Compute SMTLib Script Directly in one-pass from Lean
             match lean_ffi.smtlib_of_check_always_allows(&policyset, &schema, &req_env) {
                 Ok(smtlib1) => {
-                    // Get intermedaite term representaion of the Asserts / Verification conditions from Lean
+                    // Get intermediate term representation of the Asserts / Verification conditions from Lean
                     match lean_ffi.asserts_of_check_always_allows(&policyset, &schema, &req_env) {
                         Ok(Ok(asserts)) => {
                             // Compute SMTLib script from the intermediate Assertions
                             match lean_ffi.smtlib_of_check_asserts(&asserts, &schema, &req_env) {
                                 // The smtlib scripts should be identical. Otherwise serialization/deserialization may have altered the assertions
                                 Ok(smtlib2) => assert_eq!(smtlib1, smtlib2, "Mismatch between direct smtlib and roundtripped term smtlib for {:?}\nDirect:\n{}\n\nRoundtripped\n{}", req_env, smtlib1, smtlib2),
-                                Err(e) => panic!("Rountripped errored when direct smtlib request did not error. Error: {}", e),
+                                Err(e) => panic!("Roundtripped errored when direct smtlib request did not error. Error: {}", e),
                             }
                         }
-                        Ok(Err(s)) => panic!("Roundtrip erorred when direct smtlib result did not error. Error: {}", s),
-                        Err(e) => panic!("Rountripped errored when direct smtlib request did not error. Error: {}", e),
+                        Ok(Err(s)) => panic!("Roundtrip errored when direct smtlib result did not error. Error: {}", s),
+                        Err(e) => panic!("Roundtripped errored when direct smtlib request did not error. Error: {}", e),
                     }
                 }
                 // The policy/schema produced an error in Lean
@@ -119,7 +121,7 @@ fuzz_target!(|input: FuzzTargetInput| {
                     match lean_ffi.asserts_of_check_always_allows(&policyset, &schema, &req_env) {
                         Ok(Ok(asserts)) => {
                             match lean_ffi.smtlib_of_check_asserts(&asserts, &schema, &req_env) {
-                                Ok(_) => panic!("Rountripped did not error when direct smtlib request errored. Error: {}", e),
+                                Ok(_) => panic!("Roundtripped did not error when direct smtlib request errored. Error: {}", e),
                                 Err(_) => (),
                             }
                         }
@@ -129,5 +131,6 @@ fuzz_target!(|input: FuzzTargetInput| {
                 }
             }
         }
+
     }
 });
